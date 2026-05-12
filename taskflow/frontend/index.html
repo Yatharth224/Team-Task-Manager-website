@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projects — TaskFlow</title>
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo">Task<span>Flow</span></div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Menu</div>
+        <div class="nav-item active">
+          <span class="nav-icon">⊞</span> Projects
+        </div>
+      </div>
+      <div class="sidebar-projects">
+        <div class="sidebar-label">Your Projects</div>
+        <div id="sidebar-project-list"></div>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="user-card">
+          <div class="user-avatar" id="sidebar-avatar">?</div>
+          <div class="user-info">
+            <div class="user-name" id="sidebar-name">—</div>
+            <div class="user-email" id="sidebar-email">—</div>
+          </div>
+          <button class="logout-btn" title="Logout" onclick="doLogout()">⏻</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Projects</h1>
+          <p class="page-sub">All projects you're part of</p>
+        </div>
+        <button class="btn btn-ghost" onclick="openCreateModal()">+ New Project</button>
+      </div>
+
+      <div id="projects-loader" class="loader"><div class="spin"></div></div>
+
+      <div id="projects-empty" class="empty hidden">
+        <div class="empty-icon">📂</div>
+        <p class="empty-text">No projects yet. Create one to get started.</p>
+      </div>
+
+      <div class="project-grid" id="project-grid"></div>
+    </main>
+  </div>
+
+  <!-- Create Project Modal -->
+  <div class="modal-backdrop hidden" id="create-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">New Project</h2>
+        <button class="modal-close" onclick="closeCreateModal()">✕</button>
+      </div>
+      <div class="field">
+        <label>Project Name</label>
+        <input type="text" id="new-proj-name" placeholder="e.g. Backend Revamp" />
+      </div>
+      <div class="field">
+        <label>Description <span class="text-muted">(optional)</span></label>
+        <textarea id="new-proj-desc" placeholder="What is this project about?"></textarea>
+      </div>
+      <p class="error-msg hidden" id="create-err"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" onclick="closeCreateModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" style="width:auto" onclick="createProject()">Create Project</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('not authed');
+
+    let allProjects = [];
+
+    async function init() {
+      const me = getCurrentUser() || await auth.me();
+      saveCurrentUser(me);
+
+      document.getElementById('sidebar-name').textContent = me.name;
+      document.getElementById('sidebar-email').textContent = me.email;
+      document.getElementById('sidebar-avatar').textContent = initials(me.name);
+
+      await loadProjects();
+    }
+
+    async function loadProjects() {
+      document.getElementById('projects-loader').classList.remove('hidden');
+      document.getElementById('project-grid').innerHTML = '';
+      document.getElementById('projects-empty').classList.add('hidden');
+
+      try {
+        allProjects = await projectsApi.list();
+        renderProjects(allProjects);
+        renderSidebarList(allProjects);
+      } catch (e) {
+        showToast('Failed to load projects', 'error');
+      } finally {
+        document.getElementById('projects-loader').classList.add('hidden');
+      }
+    }
+
+    function renderProjects(list) {
+      const grid = document.getElementById('project-grid');
+      grid.innerHTML = '';
+
+      if (!list.length) {
+        document.getElementById('projects-empty').classList.remove('hidden');
+        return;
+      }
+
+      list.forEach(p => {
+        const card = el('div', 'project-card');
+        card.innerHTML = `
+          <div class="project-name">${p.name}</div>
+          <div class="project-desc">${p.description || 'No description'}</div>
+          <div class="project-meta">
+            <span class="project-role-badge ${p.my_role === 'admin' ? 'role-admin' : 'role-member'}">${p.my_role}</span>
+            <span>${p.task_count} task${p.task_count !== 1 ? 's' : ''}</span>
+            <span>${p.members.length} member${p.members.length !== 1 ? 's' : ''}</span>
+          </div>
+        `;
+        card.onclick = () => window.location.href = `project.html?id=${p.id}`;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderSidebarList(list) {
+      const container = document.getElementById('sidebar-project-list');
+      container.innerHTML = '';
+      list.forEach(p => {
+        const item = el('div', 'nav-item');
+        item.innerHTML = `<span class="nav-icon">◆</span> ${p.name}`;
+        item.onclick = () => window.location.href = `project.html?id=${p.id}`;
+        container.appendChild(item);
+      });
+    }
+
+    function openCreateModal() {
+      document.getElementById('create-modal').classList.remove('hidden');
+      document.getElementById('new-proj-name').focus();
+    }
+
+    function closeCreateModal() {
+      document.getElementById('create-modal').classList.add('hidden');
+      document.getElementById('new-proj-name').value = '';
+      document.getElementById('new-proj-desc').value = '';
+      document.getElementById('create-err').classList.add('hidden');
+    }
+
+    async function createProject() {
+      const name = document.getElementById('new-proj-name').value.trim();
+      const desc = document.getElementById('new-proj-desc').value.trim();
+      const errEl = document.getElementById('create-err');
+
+      if (!name) {
+        errEl.textContent = 'Project name is required';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        await projectsApi.create({ name, description: desc });
+        closeCreateModal();
+        showToast('Project created!');
+        loadProjects();
+      } catch (err) {
+        errEl.textContent = handleApiError(err);
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    async function doLogout() {
+      try {
+        await auth.logout();
+        clearTokens();
+        showToast('Logged out successfully');
+        setTimeout(() => {
+          window.location.href = 'login.html';
+        }, 500);
+      } catch (e) {
+        clearTokens();
+        window.location.href = 'login.html';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
