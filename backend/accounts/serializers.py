@@ -1,36 +1,50 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
+from .models import Project, ProjectMember
+from accounts.serializers import BasicUserSerializer
+
 User = get_user_model()
 
 
-class SignupSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
+class MembershipSerializer(serializers.ModelSerializer):
+    user = BasicUserSerializer(read_only=True)
 
     class Meta:
-        model = User
-        fields = ('id', 'name', 'email', 'password')
-
-    def create(self, validated_data):
-        # use create_user so password gets hashed properly
-        user = User.objects.create_user(
-            username=validated_data['email'],
-            email=validated_data['email'],
-            name=validated_data['name'],
-            password=validated_data['password'],
-        )
-        return user
+        model = ProjectMember
+        fields = ('id', 'user', 'role', 'joined_at')
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class ProjectSerializer(serializers.ModelSerializer):
+    owner = BasicUserSerializer(read_only=True)
+    members = MembershipSerializer(source='memberships', many=True, read_only=True)
+    my_role = serializers.SerializerMethodField()
+    task_count = serializers.SerializerMethodField()
+
     class Meta:
-        model = User
-        fields = ('id', 'name', 'email', 'created_at')
-        read_only_fields = ('id', 'email', 'created_at')
+        model = Project
+        fields = ('id', 'name', 'description', 'owner', 'members', 'my_role', 'task_count', 'created_at')
+        read_only_fields = ('id', 'owner', 'created_at')
+
+    def get_my_role(self, obj):
+        req_user = self.context['request'].user
+        try:
+            seat = obj.memberships.get(user=req_user)
+            return seat.role
+        except ProjectMember.DoesNotExist:
+            return None
+
+    def get_task_count(self, obj):
+        return obj.task_set.count()
 
 
-class BasicUserSerializer(serializers.ModelSerializer):
-    """Used when embedding user info inside other serializers"""
-    class Meta:
-        model = User
-        fields = ('id', 'name', 'email')
+class AddMemberSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=['admin', 'member'], default='member')
+
+    def validate_email(self, val):
+        try:
+            User.objects.get(email=val)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("No account found with this email.")
+        return val
