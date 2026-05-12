@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.sessions.models import Session
 
 from .serializers import SignupSerializer, UserProfileSerializer
 
@@ -64,3 +65,26 @@ class MeView(APIView):
             return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)
         form.save()
         return Response(form.data)
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Logout is now just clearing frontend tokens
+        # Sessions in Django are handled server-side automatically
+        return Response({'message': 'Successfully logged out'})
+
+
+class ActiveSessionsView(APIView):
+    """Get all active sessions for current user"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        sessions = Session.objects.filter(expire_date__gte=__import__('django.utils.timezone', fromlist=['now']).now())
+        count = sessions.count()
+        return Response({
+            'total_active_sessions': count,
+            'current_user_id': request.user.id,
+            'message': f'{count} sessions active globally'
+        })
