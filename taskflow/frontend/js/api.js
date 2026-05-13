@@ -1,5 +1,5 @@
 // Central API utility - Change BASE_URL when you deploy
-const BASE_URL = 'http://127.0.0.1:8000/api';
+const BASE_URL = 'https://team-task-manager-website-production.up.railway.app/api';
 
 function getToken() {
   return localStorage.getItem('access_token');
