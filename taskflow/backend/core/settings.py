@@ -14,7 +14,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-change-this-in-producti
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,team-task-manager-website-production.up.railway.app').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
