@@ -10,7 +10,7 @@ pymysql.install_as_MySQLdb()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-change-this-in-production-please'
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
